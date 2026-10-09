@@ -3,6 +3,13 @@
 BFI-44 Profile Studio is a web tool designed to simplify the preliminary
 calculation process of the BFI-44 personality questionnaire.
 
+## Public online version
+
+The tool is available online and can be used directly in a web browser without
+downloading any files:
+
+[https://wo-x-six.vercel.app](https://wo-x-six.vercel.app)
+
 The tool automates the mechanical steps that can be time-consuming and prone
 to calculation errors, such as scoring items, calculating dimension scores,
 computing averages and standard deviations, obtaining z-scores, assigning
@@ -52,7 +59,8 @@ npm run build
 
 The project can be deployed on Vercel, Netlify, or another hosting service
 that supports Next.js. Once deployed, the public URL can be shared with other
-users.
+users. The current public version is available at
+[https://wo-x-six.vercel.app](https://wo-x-six.vercel.app).
 
 The application does not require a database, backend, or AI API. Shared
 reports use URL fragments, while local usage data is stored in the browser.
