@@ -1,0 +1,91 @@
+"use client";
+
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import { ITEMS, SCALE_LABELS } from "@/config/bfi44";
+import { Answers, calculateResults, DimensionResult, missingItems } from "@/lib/scoring";
+import { AnalysisData, decodeSharePayload, encodeSharePayload, SharePayload, SubjectData } from "@/lib/share";
+import ProfileChart from "@/components/ProfileChart";
+import { ReportDocument } from "@/components/PdfReport";
+
+const defaultSubject: SubjectData = { identifier: "L.", gender: "", age: "", profession: "" };
+const defaultAnalysis: AnalysisData = { texts: {}, deepDives: [], generatedText: "", criticalComment: "" };
+const steps = ["Dati e risposte", "Calcolo", "Grafico", "Analisi", "Esporta"];
+
+function loadJson<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
+}
+
+export default function BFIWorkspace() {
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<Answers>({});
+  const [subject, setSubject] = useState(defaultSubject);
+  const [analysis, setAnalysis] = useState(defaultAnalysis);
+  const [results, setResults] = useState<DimensionResult[] | null>(null);
+  const [calculatedAnswers, setCalculatedAnswers] = useState<Answers | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get("share") || window.location.hash.replace(/^#share=/, "");
+    if (encoded) {
+      const payload = decodeSharePayload(encoded);
+      if (payload) {
+        setAnswers(payload.answers); setSubject(payload.subject); setAnalysis(payload.analysis);
+        setResults(calculateResults(payload.answers)); setCalculatedAnswers(payload.answers); setStep(1);
+      }
+    } else {
+      setAnswers(loadJson("bfi44-answers", {})); setSubject(loadJson("bfi44-subject", defaultSubject)); setAnalysis(loadJson("bfi44-analysis", defaultAnalysis));
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => { if (hydrated) localStorage.setItem("bfi44-answers", JSON.stringify(answers)); }, [answers, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem("bfi44-subject", JSON.stringify(subject)); }, [subject, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem("bfi44-analysis", JSON.stringify(analysis)); }, [analysis, hydrated]);
+
+  const missing = useMemo(() => missingItems(answers), [answers]);
+  const dataChanged = calculatedAnswers && JSON.stringify(calculatedAnswers) !== JSON.stringify(answers);
+  const reportDate = new Intl.DateTimeFormat("it-IT", { dateStyle: "long" }).format(new Date());
+  const setAnswer = (id: number, value: number) => setAnswers((current) => ({ ...current, [id]: value }));
+  const calculate = () => { if (missing.length) return; setResults(calculateResults(answers)); setCalculatedAnswers({ ...answers }); setStep(1); };
+  const updateText = (key: string, value: string) => setAnalysis((current) => ({ ...current, texts: { ...current.texts, [key]: value } }));
+  const createShare = () => { const payload: SharePayload = { version: 1, subject, answers, analysis, createdAt: new Date().toISOString() }; setShareUrl(`${window.location.origin}${window.location.pathname}#share=${encodeSharePayload(payload)}`); setShareOpen(true); setCopied(false); };
+  const copyShare = async () => { await navigator.clipboard.writeText(shareUrl); setCopied(true); };
+
+  return <div className="app">
+    <header className="topbar"><div className="brand"><span className="mark">B</span><span>BFI-44 · Profile Studio</span></div><div className="top-actions"><span className="status"><i className="dot"/> Salvataggio locale attivo</span><button className="btn" onClick={createShare}>Condividi report</button><button className="btn primary" disabled={!results} onClick={() => setStep(4)}>Esporta PDF</button></div></header>
+    <main className="workspace"><div className="intro"><div><div className="eyebrow">Strumento didattico · BFI-44</div><h1>Un profilo chiaro,<br/>una lettura più consapevole.</h1></div><p className="intro-copy">Calcola il profilo quantitativo, aggiungi la tua analisi e condividi il report con un link sicuro. I commenti restano sempre tuoi.</p></div>
+      <nav className="steps">{steps.map((label, index) => <button className={`step ${step === index ? "active" : ""}`} key={label} onClick={() => { if (index === 0 || results) setStep(index); }}><span className="step-num">{index < step ? "✓" : index + 1}</span>{label}</button>)}</nav>
+      {step === 0 && <InputStep subject={subject} setSubject={setSubject} answers={answers} setAnswer={setAnswer} missing={missing} onCalculate={calculate}/>} 
+      {step === 1 && results && <CalculationStep results={results} onBack={() => setStep(0)} onNext={() => setStep(2)}/>} 
+      {step === 2 && results && <ChartStep results={results} onBack={() => setStep(1)} onNext={() => setStep(3)}/>} 
+      {step === 3 && results && <AnalysisStep results={results} analysis={analysis} updateText={updateText} setAnalysis={setAnalysis} dataChanged={Boolean(dataChanged)} onBack={() => setStep(2)} onNext={() => setStep(4)}/>} 
+      {step === 4 && results && <ExportStep subject={subject} results={results} analysis={analysis} date={reportDate} onBack={() => setStep(3)}/>} 
+      <p className="privacy">Nessun dato viene inviato in rete · i punteggi sono calcolati nel tuo browser</p>
+    </main>
+    {shareOpen && <div className="share-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}><div className="share-panel"><h2>Condividi il report</h2><p>Il link contiene risposte e testi nel frammento dell'URL. Il frammento non viene inviato al server; chi riceve il link può aprire e modificare una copia.</p><textarea className="share-url" readOnly value={shareUrl}/><div className="share-actions"><button className="btn" onClick={() => setShareOpen(false)}>Chiudi</button><button className="btn primary" onClick={copyShare}>{copied ? "Copiato" : "Copia link"}</button></div></div></div>}
+  </div>;
+}
+
+function InputStep({ subject, setSubject, answers, setAnswer, missing, onCalculate }: { subject: SubjectData; setSubject: Dispatch<SetStateAction<SubjectData>>; answers: Answers; setAnswer: (id: number, value: number) => void; missing: number[]; onCalculate: () => void }) {
+  return <section className="card"><div className="card-head"><div><h2 className="card-title">Dati e risposte</h2><p className="card-sub">Inserisci i dati opzionali e rispondi a tutte le 44 affermazioni.</p></div><span className="eyebrow">01 / 05</span></div><div className="card-body"><div className="fields"><div className="field"><label>Identificativo soggetto</label><input value={subject.identifier} onChange={(event) => setSubject({ ...subject, identifier: event.target.value })}/></div><div className="field"><label>Genere</label><select value={subject.gender} onChange={(event) => setSubject({ ...subject, gender: event.target.value })}><option value="">Non specificato</option><option>Donna</option><option>Uomo</option><option>Non binario</option><option>Altro</option></select></div><div className="field"><label>Età</label><input type="number" min="0" value={subject.age} onChange={(event) => setSubject({ ...subject, age: event.target.value })}/></div><div className="field"><label>Professione</label><input value={subject.profession} onChange={(event) => setSubject({ ...subject, profession: event.target.value })}/></div></div><div className="section-kicker"><h3>Questionario · versione italiana</h3><span>{44 - missing.length} / 44 risposte inserite</span></div><div className="item-list">{ITEMS.map((item) => <div className="item-row" key={item.id}><span className="item-no">{String(item.id).padStart(2, "0")}</span><span className="item-text">{item.text}</span><div className="scale">{[1,2,3,4,5].map((value) => <button key={value} className={answers[item.id] === value ? "selected" : ""} title={SCALE_LABELS[value - 1]} onClick={() => setAnswer(item.id, value)}>{value}</button>)}</div></div>)}</div>{missing.length > 0 && <div className="validation">Mancano {missing.length} risposte. Completa gli item: {missing.slice(0, 16).join(", ")}{missing.length > 16 ? " …" : ""}.</div>}</div><div className="card-foot"><span className="foot-note">Suggerimento: usa i tasti 1–5 per una compilazione rapida.</span><button className="btn primary" disabled={missing.length > 0} onClick={onCalculate}>Calcola profilo →</button></div></section>;
+}
+
+function CalculationStep({ results, onBack, onNext }: { results: DimensionResult[]; onBack: () => void; onNext: () => void }) {
+  return <section className="card"><div className="card-head"><div><h2 className="card-title">Calcolo e risultati</h2><p className="card-sub">Per ogni dimensione: somma degli item dopo l'inversione, media, norma M/SD, punto z e livello.</p></div><span className="eyebrow">02 / 05</span></div><div className="card-body"><div className="results">{results.map((result) => <div className="metric" key={result.key}><span className="metric-code">{result.key}</span><h3>{result.label}</h3><div className="z">{result.z.toFixed(2)}</div><div className="level">{result.level}</div>{result.nearThreshold && <div className="warning">⚠ vicino al confine</div>}</div>)}</div><table className="summary"><thead><tr><th>Dimensione</th><th>Somma</th><th>Media</th><th>M (SD) normativo</th><th>Punto z</th><th>Livello</th></tr></thead><tbody>{results.map((result) => <tr key={result.key}><td>{result.label}</td><td>{result.sum}</td><td>{result.mean.toFixed(2)}</td><td>{result.normMean.toFixed(2)} ({result.normSd.toFixed(2)})</td><td>{result.z.toFixed(2)}</td><td><span className="pill">{result.level}</span></td></tr>)}</tbody></table><div className="section-kicker"><h3>Dettaglio per dimensione</h3><span>inversione e formule</span></div>{results.map((result) => <details className="detail" key={result.key}><summary><span>{result.label}</span><span>somma {result.sum} · media {result.mean.toFixed(2)} · z {result.z.toFixed(2)}</span></summary><div className="detail-content"><table><thead><tr><th>n.</th><th>Item</th><th>Originale</th><th>Inverso</th><th>Scored</th></tr></thead><tbody>{result.items.map((item) => <tr key={item.id}><td>{item.id}</td><td>{item.text}</td><td>{item.original}</td><td>{item.reversed ? "sì" : "no"}</td><td>{item.scored}</td></tr>)}</tbody></table><div className="formula">somma {result.sum} · media {result.sum} ÷ {result.count} = {result.mean.toFixed(4)} · z = ({result.mean.toFixed(4)} − {result.normMean.toFixed(2)}) ÷ {result.normSd.toFixed(2)} = {result.z.toFixed(4)}</div></div></details>)}</div><div className="card-foot"><button className="btn" onClick={onBack}>← Modifica risposte</button><button className="btn primary" onClick={onNext}>Vedi grafico →</button></div></section>;
+}
+
+function ChartStep({ results, onBack, onNext }: { results: DimensionResult[]; onBack: () => void; onNext: () => void }) { return <section className="card"><div className="card-head"><div><h2 className="card-title">Profilo dei punteggi z</h2><p className="card-sub">L'asse fisso rende leggibili i valori e il loro scostamento dalla media normativa.</p></div><span className="eyebrow">03 / 05</span></div><div className="card-body"><ProfileChart results={results}/></div><div className="card-foot"><button className="btn" onClick={onBack}>← Calcolo</button><button className="btn primary" onClick={onNext}>Scrivi analisi →</button></div></section>; }
+
+function AnalysisStep({ results, analysis, updateText, setAnalysis, dataChanged, onBack, onNext }: { results: DimensionResult[]; analysis: AnalysisData; updateText: (key: string, value: string) => void; setAnalysis: Dispatch<SetStateAction<AnalysisData>>; dataChanged: boolean; onBack: () => void; onNext: () => void }) {
+  const addDive = () => setAnalysis((current) => ({ ...current, deepDives: [...current.deepDives, { hypothesis: "", instrument: "", rationale: "" }] }));
+  const changeDive = (index: number, key: "hypothesis" | "instrument" | "rationale", value: string) => setAnalysis((current) => ({ ...current, deepDives: current.deepDives.map((dive, i) => i === index ? { ...dive, [key]: value } : dive) }));
+  return <section className="card"><div className="card-head"><div><h2 className="card-title">Descrizione del profilo</h2><p className="card-sub">Descrivi i cinque punteggi standard. Quando un punteggio si discosta dalla media, commenta anche le singole risposte e usa i termini del questionario, delle lezioni o del file di scoring.</p></div><span className="eyebrow">04 / 05</span></div><div className="card-body">{dataChanged && <div className="validation">I dati sono cambiati dopo la stesura: rivedi i commenti prima di esportare.</div>}<div className="analysis-grid" style={{ marginTop: dataChanged ? 15 : 0 }}>{results.map((result) => <div className="analysis-card" key={result.key}><div className="analysis-head"><h3>{result.label}</h3><div className="analysis-score">media {result.mean.toFixed(2)}<br/>z {result.z.toFixed(2)} · {result.level}</div></div><div className="strip">{result.items.map((item) => <span key={item.id} className={Math.abs(item.scored - result.mean) >= 2 ? "outlier" : ""} title={`Item ${item.id}: ${item.scored}`}>{item.scored}</span>)}</div><div className="field"><textarea placeholder="Descrivi il punteggio standard e, se necessario, commenta gli item che si discostano..." value={analysis.texts[result.key] || ""} onChange={(event) => updateText(result.key, event.target.value)}/></div><p className="suggestion">Usa termini come vivace, estroverso, trascinatore e le espressioni presenti nelle frasi del questionario.</p></div>)}</div><div className="subsection"><h3>Approfondimenti</h3><p className="sub-copy">Se potessi rilevare altre informazioni su L., indica cosa osserveresti o quale intervista, questionario o prova useresti e per quale motivo.</p>{analysis.deepDives.length === 0 && <div className="empty">Nessun approfondimento aggiunto.</div>}{analysis.deepDives.map((dive, index) => <div className="deep-row" key={index}><input placeholder="Cosa vorresti rilevare / ipotesi" value={dive.hypothesis} onChange={(event) => changeDive(index, "hypothesis", event.target.value)}/><input placeholder="Osservazione, intervista, questionario o prova" value={dive.instrument} onChange={(event) => changeDive(index, "instrument", event.target.value)}/><input placeholder="Per quale motivo" value={dive.rationale} onChange={(event) => changeDive(index, "rationale", event.target.value)}/><button className="remove" onClick={() => setAnalysis((current) => ({ ...current, deepDives: current.deepDives.filter((_, i) => i !== index) }))}>×</button></div>)}<button className="btn" onClick={addDive}>＋ Aggiungi approfondimento</button></div><div className="subsection"><h3>Descrizione generata da ChatGPT e commento critico <span style={{ color: "var(--muted)", fontWeight: 400 }}>(opzionale)</span></h3><p className="sub-copy">Se lo desideri, incolla una descrizione generata a partire dai cinque punti z e aggiungi un commento qualitativo sulla sua adeguatezza.</p><div className="analysis-grid"><div className="field"><label>Descrizione generata</label><textarea value={analysis.generatedText} onChange={(event) => setAnalysis((current) => ({ ...current, generatedText: event.target.value }))}/></div><div className="field"><label>Commento qualitativo</label><textarea value={analysis.criticalComment} onChange={(event) => setAnalysis((current) => ({ ...current, criticalComment: event.target.value }))}/></div></div></div></div><div className="card-foot"><button className="btn" onClick={onBack}>← Grafico</button><button className="btn primary" onClick={onNext}>Anteprima PDF →</button></div></section>;
+}
+
+function ExportStep({ subject, results, analysis, date, onBack }: { subject: SubjectData; results: DimensionResult[]; analysis: AnalysisData; date: string; onBack: () => void }) { return <section className="card"><div className="card-head"><div><h2 className="card-title">Anteprima ed esportazione</h2><p className="card-sub">Il report è pronto in italiano, con risultati quantitativi, grafico e descrizione manuale.</p></div><span className="eyebrow">05 / 05</span></div><div className="card-body"><div className="export-grid"><div className="preview"><div className="report-kicker">BFI-44 · REPORT PSICOMETRICO</div><div className="report-title">Profilo di {subject.identifier || "soggetto"}</div><div className="report-meta">Ubbiali et al., 2013 · {date}</div><hr className="rule"/><div className="lines"><i/><i className="short"/><i/><i className="short"/></div><hr className="rule"/><div className="results" style={{ marginBottom: 0 }}>{results.map((result) => <div key={result.key}><span className="metric-code">{result.key}</span><div style={{ fontFamily: "DM Mono", marginTop: 6 }}>{result.z.toFixed(2)}</div></div>)}</div></div><div className="export-side"><h3>Scarica il report</h3><p>Include dati generali, risultati quantitativi con somma e media, grafico, descrizione del profilo, approfondimenti e la nota metodologica finale.</p><PDFDownloadLink document={<ReportDocument subject={subject} results={results} analysis={analysis} date={date}/>} fileName={`BFI-44-${subject.identifier || "report"}.pdf`}>{({ loading }) => <button className="btn primary" disabled={loading}>{loading ? "Preparazione..." : "Scarica PDF"}</button>}</PDFDownloadLink></div></div></div><div className="card-foot"><button className="btn" onClick={onBack}>← Modifica descrizione</button><button className="btn" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Torna all'inizio ↑</button></div></section>; }
