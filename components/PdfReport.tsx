@@ -13,8 +13,8 @@ const s = StyleSheet.create({
   row: { flexDirection: "row" },
   cell: { padding: 5, borderRight: "1pt solid #d9dfe0", borderBottom: "1pt solid #d9dfe0", flex: 1 },
   head: { backgroundColor: "#edf4f1", color: "#376d68" },
-  p: { lineHeight: 1.45, marginBottom: 6 },
-  small: { color: "#6f7a7d", fontSize: 8, lineHeight: 1.5 },
+  p: { lineHeight: 1.25, marginBottom: 4 },
+  small: { color: "#6f7a7d", fontSize: 8, lineHeight: 1.25 },
   chart: { marginTop: 8, padding: 10, border: "1pt solid #d9dfe0" },
   warning: { marginTop: 18, padding: 9, backgroundColor: "#fff0ee", borderLeft: "3pt solid #c56d5c" },
   warningText: { color: "#a54d42", fontSize: 8, lineHeight: 1.45 },
@@ -35,10 +35,8 @@ export function ReportDocument({ subject, results, analysis, date }: { subject: 
     <Text style={s.section}>3. Grafico del profilo</Text>
     <View style={s.chart}><Svg width="500" height="170" viewBox="0 0 500 170"><Line x1="35" y1="85" x2="475" y2="85" stroke="#617a76" strokeWidth="1"/>{results.map((result, index) => { const x = 79 + index * 90; const height = Math.min(Math.abs(result.z), 3) * 21; const y = result.z >= 0 ? 85 - height : 85; return [<Rect key={`${result.key}-bar`} x={x - 15} y={y} width="30" height={height} fill={result.z < 0 ? "#9ab7b1" : "#5d8c87"}/>, <Text key={`${result.key}-label`} x={x - 8} y="164" style={{ fontSize: 8 }}>{result.key}</Text>, <Text key={`${result.key}-value`} x={x - 12} y={result.z >= 0 ? y - 4 : y + height + 12} style={{ fontSize: 8 }}>{result.z.toFixed(2)}</Text>]; })}</Svg><Text style={s.small}>Nevroticismo: punteggio alto = maggiore instabilità emotiva.</Text></View>
     <Text style={s.section}>4. Descrizione del profilo</Text>
-    <Text style={s.p}>Descrivere i cinque punteggi standard ottenuti. Per i punteggi che si discostano dalla media, considerare i valori assegnati alle singole domande e commentare usando i termini del questionario, delle lezioni o del file di scoring.</Text>
     {results.map((result) => { const outliers = divergentItems(result); return <View key={result.key}><Text style={{ color: "#376d68", marginBottom: 3 }}>{result.label} · {result.level} · z = {result.z.toFixed(2)}</Text>{outliers.length > 0 && <Text style={s.small}>Item che si discostano dalla media: {outliers.map((item) => `${item.id} (${item.scored})`).join(", ")}.</Text>}<Text style={s.p}>{analysis.texts[result.key] || "Nessun commento inserito."}</Text></View>; })}
     <Text style={s.section}>5. Approfondimenti e strumenti proposti</Text>
-    <Text style={s.p}>Indicare quali ulteriori informazioni su L. si potrebbero rilevare con osservazioni, interviste, questionari o prove, specificando per quale motivo.</Text>
     {analysis.deepDives.length ? analysis.deepDives.map((dive, index) => <View style={s.deepDive} key={index}><Text style={s.deepLabel}>1. Dati osservati</Text><Text style={s.p}>{dive.observedData || "—"}</Text><Text style={s.deepLabel}>2. Direzione di indagine</Text><Text style={s.p}>{dive.direction || "—"}</Text><Text style={s.deepLabel}>3. Domanda specifica</Text><Text style={s.p}>{dive.question || "—"}</Text><Text style={s.deepLabel}>4. Metodo adeguato e motivazione</Text><Text style={s.p}>{dive.method || "—"}</Text></View>) : <Text style={s.small}>Nessun approfondimento inserito.</Text>}
     {(analysis.generatedText || analysis.criticalComment) && <><Text style={s.section}>6. Descrizione ChatGPT e commento critico</Text>{analysis.generatedText && <Text style={s.p}>Descrizione generata: {analysis.generatedText}</Text>}{analysis.criticalComment && <Text style={s.p}>Commento qualitativo sull'adeguatezza: {analysis.criticalComment}</Text>}</>}
     <View style={s.warning}><Text style={s.warningText}>NOTA METODOLOGICA — I risultati non costituiscono una diagnosi clinica. Interpretare considerando il contesto, i limiti dello strumento e ulteriori informazioni.</Text></View>
