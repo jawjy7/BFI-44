@@ -1,6 +1,7 @@
 import { Answers } from "@/lib/scoring";
 export type SubjectData={identifier:string;gender:string;age:string;profession:string};
-export type AnalysisData={texts:Record<string,string>;deepDives:{hypothesis:string;instrument:string;rationale:string}[];generatedText:string;criticalComment:string};
+export type DeepDive={observedData:string;direction:string;question:string;method:string;hypothesis?:string;instrument?:string;rationale?:string};
+export type AnalysisData={texts:Record<string,string>;deepDives:DeepDive[];generatedText:string;criticalComment:string};
 export type SharePayload={version:1;subject:SubjectData;answers:Answers;analysis:AnalysisData;createdAt:string};
 const b64=(bytes:Uint8Array)=>{let b="";bytes.forEach(x=>b+=String.fromCharCode(x));return btoa(b).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");};
 const unb64=(s:string)=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-s.length%4)%4)),c=>c.charCodeAt(0));

@@ -18,6 +18,8 @@ const s = StyleSheet.create({
   chart: { marginTop: 8, padding: 10, border: "1pt solid #d9dfe0" },
   warning: { marginTop: 18, padding: 9, backgroundColor: "#fff0ee", borderLeft: "3pt solid #c56d5c" },
   warningText: { color: "#a54d42", fontSize: 8, lineHeight: 1.45 },
+  deepDive: { marginBottom: 10, padding: 8, border: "1pt solid #d9dfe0" },
+  deepLabel: { fontSize: 8, color: "#376d68", marginBottom: 2 },
 });
 
 function divergentItems(result: DimensionResult) { return result.items.filter((item) => Math.abs(item.scored - result.mean) >= 2); }
@@ -37,7 +39,7 @@ export function ReportDocument({ subject, results, analysis, date }: { subject: 
     {results.map((result) => { const outliers = divergentItems(result); return <View key={result.key}><Text style={{ color: "#376d68", marginBottom: 3 }}>{result.label} · {result.level} · z = {result.z.toFixed(2)}</Text>{outliers.length > 0 && <Text style={s.small}>Item che si discostano dalla media: {outliers.map((item) => `${item.id} (${item.scored})`).join(", ")}.</Text>}<Text style={s.p}>{analysis.texts[result.key] || "Nessun commento inserito."}</Text></View>; })}
     <Text style={s.section}>5. Approfondimenti e strumenti proposti</Text>
     <Text style={s.p}>Indicare quali ulteriori informazioni su L. si potrebbero rilevare con osservazioni, interviste, questionari o prove, specificando per quale motivo.</Text>
-    {analysis.deepDives.length ? analysis.deepDives.map((dive, index) => <Text style={s.p} key={index}>Ipotesi: {dive.hypothesis || "—"} · Strumento: {dive.instrument || "—"} · Motivazione: {dive.rationale || "—"}</Text>) : <Text style={s.small}>Nessun approfondimento inserito.</Text>}
+    {analysis.deepDives.length ? analysis.deepDives.map((dive, index) => <View style={s.deepDive} key={index}><Text style={s.deepLabel}>1. Dati osservati</Text><Text style={s.p}>{dive.observedData || "—"}</Text><Text style={s.deepLabel}>2. Direzione di indagine</Text><Text style={s.p}>{dive.direction || "—"}</Text><Text style={s.deepLabel}>3. Domanda specifica</Text><Text style={s.p}>{dive.question || "—"}</Text><Text style={s.deepLabel}>4. Metodo adeguato e motivazione</Text><Text style={s.p}>{dive.method || "—"}</Text></View>) : <Text style={s.small}>Nessun approfondimento inserito.</Text>}
     {(analysis.generatedText || analysis.criticalComment) && <><Text style={s.section}>6. Descrizione ChatGPT e commento critico</Text>{analysis.generatedText && <Text style={s.p}>Descrizione generata: {analysis.generatedText}</Text>}{analysis.criticalComment && <Text style={s.p}>Commento qualitativo sull'adeguatezza: {analysis.criticalComment}</Text>}</>}
     <View style={s.warning}><Text style={s.warningText}>NOTA METODOLOGICA — I risultati non costituiscono una diagnosi clinica. Interpretare considerando il contesto, i limiti dello strumento e ulteriori informazioni.</Text></View>
   </Page></Document>;
