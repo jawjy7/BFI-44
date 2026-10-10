@@ -1,7 +1,7 @@
 "use client";
 
 import { Document, Line, Page, Rect, Svg, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { DimensionResult } from "@/lib/scoring";
+import { DimensionResult, isItemOutlier } from "@/lib/scoring";
 import { AnalysisData, SubjectData } from "@/lib/share";
 
 const s = StyleSheet.create({
@@ -20,7 +20,7 @@ const s = StyleSheet.create({
   warningText: { color: "#a54d42", fontSize: 8, lineHeight: 1.45 },
 });
 
-function divergentItems(result: DimensionResult) { return result.items.filter((item) => Math.abs(item.scored - result.mean) >= 2); }
+function divergentItems(result: DimensionResult) { return result.items.filter((item) => isItemOutlier(item, result.mean)); }
 
 export function ReportDocument({ subject, results, analysis, date }: { subject: SubjectData; results: DimensionResult[]; analysis: AnalysisData; date: string }) {
   return <Document title="BFI-44 Profile Report"><Page size="A4" style={s.page}>
